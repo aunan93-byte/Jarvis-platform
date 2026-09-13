@@ -1,31 +1,32 @@
 name: Kontroller publisert plattform
 on:
   deployment_status:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   verify:
-    if: github.event.deployment_status.state == 'success'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.deployment_status.state == 'success' &&
+      (github.event.deployment.production_environment == true || github.event.deployment.environment == 'Production'))
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Registrer publiseringsmål
-        env:
-          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
-          PRODUCTION_ENVIRONMENT: ${{ github.event.deployment.production_environment }}
-          DEPLOYMENT_REF: ${{ github.event.deployment.ref }}
-          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
-        run: node -e 'for (const key of ["DEPLOYMENT_ENVIRONMENT", "PRODUCTION_ENVIRONMENT", "DEPLOYMENT_REF", "DEPLOYMENT_URL"]) console.log(key + "=" + process.env[key])'
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.deployment.sha }}
+          ref: main
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Kontroller API, nettside og kodeversjon
-        if: github.event.deployment.production_environment == true || github.event.deployment.environment == 'Production'
+      - name: Finn verifisert produksjonsadresse
+        id: vercel
         env:
-          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
-          EXPECTED_COMMIT: ${{ github.event.deployment.sha }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/resolve-vercel-production.mjs
+      - name: Kontroller API, nettside og kodeversjon
+        env:
+          DEPLOYMENT_URL: ${{ steps.vercel.outputs.production_url }}
+          EXPECTED_COMMIT: ${{ github.event.deployment.sha || github.sha }}
         run: node scripts/verify-deployment.mjs

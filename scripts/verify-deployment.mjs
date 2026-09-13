@@ -13,7 +13,13 @@ export async function verifyDeployment(rawUrl, expectedCommit, fetcher = fetch) 
     const result = await fetcher(new URL(path, url), {
       redirect: 'manual', signal: AbortSignal.timeout(20000), cache: 'no-store',
     });
-    if (!result.ok) throw new Error(`${path}: HTTP ${result.status}. Publiseringen er ikke verifisert.`);
+    if (!result.ok) {
+      const location = result.headers.get('location');
+      const target = location ? new URL(location, url) : null;
+      const reason = target?.hostname === 'vercel.com' && target.pathname.startsWith('/sso-api')
+        ? ' Vercel krever innlogging for denne adressen.' : '';
+      throw new Error(`${path}: HTTP ${result.status}.${reason} Publiseringen er ikke verifisert.`);
+    }
     if (!result.headers.get('content-type')?.includes(type)) throw new Error(`${path}: feil innholdstype.`);
     return result;
   }
