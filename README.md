@@ -19,6 +19,22 @@ Koble dette arkivet til det eksisterende Vercel-prosjektet gjennom **Project Set
 - Statisk side: `public/index.html`
 - Helsekontroll: `GET /api/health`
 - GitHub-kontroll: `.github/workflows/ci.yml`
+- Publiseringskontroll: `.github/workflows/verify-deployment.yml`
+
+Når Vercel melder en vellykket produksjonspublisering til GitHub, kontrollerer
+arbeidsflyten den faktiske forsiden, API-svaret og at publisert commit samsvarer
+med GitHub. Kontrollen bruker ingen Vercel-token. Forhåndsvisninger hoppes over.
+HTTP-feil, innloggingsbeskyttelse, feil kodeversjon og manglende Git-identitet
+regnes som mislykket verifisering. Kontrollen utføres etter publisering og
+stanser ikke selve publiseringen.
+
+API-et eksponerer bare commit-ID og miljø fra Vercels systemmiljøvariabler.
+Hvis disse ikke er tilgjengelige, vises identiteten som ukjent. Vercels
+**Enable access to System Environment Variables** må være aktivert for at
+commit-kontrollen skal kunne bestå.
+
+[Vercels systemmiljøvariabler](https://vercel.com/docs/environment-variables/system-environment-variables)
+[GitHubs publiseringshendelser](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#deployment_status)
 
 En godkjent kodekontroll er ikke bevis på at Vercel er ferdig tilkoblet. Verifiser byggestatus og helsekontrollen etter tilkobling.
 

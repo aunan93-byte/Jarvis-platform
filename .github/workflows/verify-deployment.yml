@@ -1,0 +1,23 @@
+name: Kontroller publisert plattform
+on:
+  deployment_status:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.production_environment == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Kontroller API, nettside og kodeversjon
+        env:
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
+          EXPECTED_COMMIT: ${{ github.event.deployment.sha }}
+        run: node scripts/verify-deployment.mjs
