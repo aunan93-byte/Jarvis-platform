@@ -1,0 +1,35 @@
+name: Diagnose public Vercel routes
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/diagnose-vercel.yml'
+permissions: {}
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Inspect public response status without following redirects
+        run: |
+          node --input-type=module <<'JS'
+          const origins = [
+            'https://jarvis-platform.vercel.app',
+            'https://jarvis-platform-bi9x8wdli-aunan93-3711.vercel.app',
+          ];
+          for (const origin of origins) {
+            try {
+              const response = await fetch(origin + '/api/health', {redirect:'manual',signal:AbortSignal.timeout(15000)});
+              const location = response.headers.get('location');
+              let redirect = null;
+              if (location) { const target = new URL(location, origin); redirect = target.origin + target.pathname; }
+              const result = {origin,status:response.status,redirect,contentType:response.headers.get('content-type')};
+              if (response.headers.get('content-type')?.includes('application/json')) {
+                const data = await response.json();
+                result.service = data.service;
+                result.commit = data.deployment?.commit;
+              }
+              console.log(JSON.stringify(result));
+            } catch (error) { console.log(JSON.stringify({origin,error:error.message})); }
+          }
+          JS
