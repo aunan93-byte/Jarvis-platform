@@ -5,10 +5,17 @@ permissions:
   contents: read
 jobs:
   verify:
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.production_environment == true
+    if: github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
+      - name: Registrer publiseringsmål
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          PRODUCTION_ENVIRONMENT: ${{ github.event.deployment.production_environment }}
+          DEPLOYMENT_REF: ${{ github.event.deployment.ref }}
+          DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
+        run: node -e 'for (const key of ["DEPLOYMENT_ENVIRONMENT", "PRODUCTION_ENVIRONMENT", "DEPLOYMENT_REF", "DEPLOYMENT_URL"]) console.log(key + "=" + process.env[key])'
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.deployment.sha }}
@@ -17,6 +24,7 @@ jobs:
         with:
           node-version: '24'
       - name: Kontroller API, nettside og kodeversjon
+        if: github.event.deployment.production_environment == true || github.event.deployment.environment == 'Production'
         env:
           DEPLOYMENT_URL: ${{ github.event.deployment_status.environment_url }}
           EXPECTED_COMMIT: ${{ github.event.deployment.sha }}
