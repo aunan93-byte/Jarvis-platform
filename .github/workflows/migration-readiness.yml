@@ -1,0 +1,40 @@
+name: Kontroller migreringsgrunnlag
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/migration-readiness.yml'
+permissions: {}
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Les konfigurasjonsstatus uten hemmelige verdier
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          const token = process.env.VERCEL_TOKEN;
+          if (!token) throw new Error('MISSING_VERCEL_TOKEN');
+          const response = await fetch(
+            'https://api.vercel.com/v10/projects/prj_WdEEcvAzo9UHUMEEqVIpJTqwdqRX/env?teamId=team_pHhv39m8ESRciG3PZ6MoJux3&decrypt=false',
+            {headers:{Authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(20000)}
+          ).catch(() => { throw new Error('Vercel configuration request failed'); });
+          if (!response.ok) throw new Error('Vercel configuration HTTP '+response.status);
+          const data = await response.json();
+          if (!Array.isArray(data.envs)) throw new Error('Unexpected Vercel configuration format');
+          const keys = new Set(data.envs.filter(e => Array.isArray(e.target) && e.target.includes('production')).map(e => e.key));
+          const alternatives = {
+            database: ['DATABASE_URL','POSTGRES_URL','POSTGRES_PRISMA_URL'],
+            explicit_ai_key: ['OPENAI_API_KEY','AI_GATEWAY_API_KEY'],
+            firecrawl: ['FIRECRAWL_API_KEY'],
+            stripe: ['STRIPE_SECRET_KEY'],
+            stripe_webhook: ['STRIPE_WEBHOOK_SECRET'],
+            private_file_storage: ['BLOB_READ_WRITE_TOKEN','S3_ACCESS_KEY_ID'],
+            owner_session: ['AUTH_SECRET','SESSION_SECRET'],
+          };
+          const configured = Object.fromEntries(Object.entries(alternatives).map(([name,names]) => [name,names.some(key=>keys.has(key))]));
+          console.log(JSON.stringify({kind:'migration_config_presence_only',configured,credentials_validated:false,agent_migration_complete:false},null,2));
+          JS
